@@ -43,10 +43,10 @@ class ResidualNetwork(nn.Module):
         for level in range(3):
             cur_ch = start_ch * 2**(level)
             for i in range(num_blocks_per_level-1):
-                self.backbone.add_module(
+                self.backbone.add_module(f"level{level}_block{i}",
                     ResBlk(cur_ch, cur_ch, pool=False, use_residual=use_residual)
                 )
-            self.backbone.add_module(
+            self.backbone.add_module(f"level{level}",
                 ResBlk(cur_ch, cur_ch*2, pool=True,use_residual=use_residual))
         
         self.out = nn.Linear(in_features=start_ch*8*4*4, out_features=10)

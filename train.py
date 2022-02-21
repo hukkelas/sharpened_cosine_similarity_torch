@@ -5,6 +5,7 @@ https://paperswithcode.com/sota/image-classification-on-cifar-10?dimension=PARAM
 """
 import functools
 import click
+import numpy as np
 import utils
 import tqdm
 import time
@@ -73,7 +74,7 @@ def evaluate(model, dataloader, tb_writer):
 
     testing_loss = epoch_testing_loss / n_images
     testing_accuracy = epoch_testing_num_correct / n_images
-    print("test/loss: ", f"{testing_loss:.4f}\t ", "test/accuracy: ", f"{testing_accuracy:.4f}", end="", sep="")
+    print("test/loss: ", f"{testing_loss:.4f}\t ", "test/accuracy: ", f"{testing_accuracy:.4f}\t", end="", sep="")
     tb_writer.add_scalar("accuracy", testing_accuracy, global_step)
     tb_writer.add_scalar("loss", testing_loss, global_step)
 
@@ -94,8 +95,12 @@ def main(run_name: str, batch_size: int, n_epochs: int, max_lr: int, model: str)
     network = utils.to_cuda(model_zoo[model]())
     example_inputs = utils.to_cuda(torch.randn((batch_size, 3, 32, 32)))
     # Got a 30% runtime boost with scripting the module (on a NVIDIA 1060 GPU)
+    print(network)
     network = torch.jit.script(network, example_inputs=(example_inputs,))
-    
+    num_params = sum([np.prod(p.shape) for p in network.parameters()])
+
+    print("Number of parameters: ", num_params/10**6, "M",  sep="")
+
     optimizer = optim.Adam(network.parameters(), lr=max_lr)
     scheduler = OneCycleLR(
         optimizer,
@@ -104,13 +109,14 @@ def main(run_name: str, batch_size: int, n_epochs: int, max_lr: int, model: str)
         epochs=n_epochs)
 
     tb_train_writer = SummaryWriter(log_dir=f"outputs/{run_name}/train")
+    tb_train_writer.add_scalar("num_params", num_params)
     tb_test_writer = SummaryWriter(log_dir=f"outputs/{run_name}/test")
     print("Starting train.")
     for i_epoch in range(n_epochs):
         print(f"epoch: {i_epoch}\t", end="")
         epoch_duration = train_epoch(network, training_loader, optimizer, scheduler, tb_train_writer)
         evaluate(network, testing_loader, tb_test_writer)
-        print("")
+        print(f"epoch duration: {epoch_duration:.4f}")
 
 
 
